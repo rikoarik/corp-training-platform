@@ -1,0 +1,19 @@
+node_modules
+dist
+.DS_Store
+.env
+.env.local
+coverage
+apps/backend/uploads
+apps/backend/prisma/dev.db
+apps/backend/prisma/dev.db-journal
+# Added by code-review-graph
+.code-review-graph/
+
+# Local AI tool config
+.claude/
+.cursor/
+.mcp.json
+AGENTS.md
+GEMINI.md
+.cursorrules

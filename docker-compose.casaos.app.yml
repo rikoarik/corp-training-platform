@@ -1,0 +1,131 @@
+name: corp-training-platform
+
+services:
+  db:
+    image: postgres:16-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-corp_training}
+      POSTGRES_USER: ${POSTGRES_USER:-app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me-now}
+    volumes:
+      - /DATA/AppData/$AppID/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    x-casaos:
+      envs:
+        - container: POSTGRES_DB
+          description:
+            en_US: PostgreSQL database name.
+        - container: POSTGRES_USER
+          description:
+            en_US: PostgreSQL username.
+        - container: POSTGRES_PASSWORD
+          description:
+            en_US: PostgreSQL password.
+      volumes:
+        - container: /var/lib/postgresql/data
+          description:
+            en_US: Persistent PostgreSQL data directory.
+
+  backend:
+    image: ${BACKEND_IMAGE:-ghcr.io/rikoarik/corp-training-backend:latest}
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      HOST: 0.0.0.0
+      DATABASE_URL: postgresql://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD:-change-me-now}@db:5432/${POSTGRES_DB:-corp_training}?schema=public
+      JWT_SECRET: ${JWT_SECRET:-change-this-jwt-secret}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-1d}
+      UPLOAD_DIR: /app/uploads
+      APP_URL: ${APP_URL:-http://localhost:${WEBUI_PORT}}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@example.com}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-ChangeMe123!}
+      RUN_PRISMA_SEED: ${RUN_PRISMA_SEED:-false}
+    volumes:
+      - /DATA/AppData/$AppID/uploads:/app/uploads
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4000/api/health').then((res) => process.exit(res.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    x-casaos:
+      envs:
+        - container: BACKEND_IMAGE
+          description:
+            en_US: GHCR backend image reference.
+        - container: JWT_SECRET
+          description:
+            en_US: JWT secret used by the API.
+        - container: JWT_EXPIRES_IN
+          description:
+            en_US: JWT expiry value.
+        - container: APP_URL
+          description:
+            en_US: Public frontend URL used for backend CORS.
+        - container: ADMIN_EMAIL
+          description:
+            en_US: Initial admin email used during seed.
+        - container: ADMIN_PASSWORD
+          description:
+            en_US: Initial admin password used during seed.
+        - container: RUN_PRISMA_SEED
+          description:
+            en_US: Set true once if you want to run Prisma seed during startup.
+      ports:
+        - container: "4000"
+          description:
+            en_US: Internal backend API port.
+      volumes:
+        - container: /app/uploads
+          description:
+            en_US: Persistent backend uploads directory.
+
+  frontend:
+    image: ${FRONTEND_IMAGE:-ghcr.io/rikoarik/corp-training-frontend:latest}
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - ${WEBUI_PORT}:80
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/ || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    x-casaos:
+      envs:
+        - container: FRONTEND_IMAGE
+          description:
+            en_US: GHCR frontend image reference.
+      ports:
+        - container: "80"
+          description:
+            en_US: Web UI port exposed by CasaOS.
+
+x-casaos:
+  architectures:
+    - amd64
+    - arm64
+  main: frontend
+  category: Developer
+  author: Claude Code
+  developer: Claude Code
+  tagline:
+    en_US: Corporate training platform with React, Fastify, and PostgreSQL.
+  description:
+    en_US: Deploy the corporate training platform on CasaOS with a frontend, backend, and PostgreSQL database using prebuilt GHCR images.
+  title:
+    en_US: Corporate Training Platform
+  port_map: ${WEBUI_PORT}
+  tips:
+    before_install:
+      en_US: Fill in BACKEND_IMAGE, FRONTEND_IMAGE, JWT_SECRET, and POSTGRES_PASSWORD before starting the app.
